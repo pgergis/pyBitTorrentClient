@@ -1,15 +1,16 @@
 import io
 
 def _str_decode(string_buf, str_len):
+    len_digits = [str(str_len)]
     char = string_buf.read(1)
-    if char == ':':
-        return string_buf.read(str_len)
-    else:
-        try:
-            str_len = int(str(str_len) + char)
-            return _str_decode(string_buf, str_len)
-        except ValueError:
-            print(f"Malformed bencode str: {str(str_len) + char}")
+    while char != ':':
+        len_digits.append(char)
+        char = string_buf.read(1)
+    try:
+        str_len = int(''.join(len_digits))
+    except ValueError:
+        print(f"Malformed bencode str: {''.join(len_digits)}")
+    return string_buf.read(str_len)
 
 def _int_decode(string_buf):
     num_digits = []
@@ -59,7 +60,7 @@ def _decode(string_buf):
             strlen = int(char)
             return _str_decode(string_buf, strlen)
         except ValueError:
-            print(f"Malformed bencode input: {c}")
+            print(f"Malformed bencode input: {char}")
 
 def filename_decode(filename):
     with open(filename, 'r', encoding='latin1') as f:
