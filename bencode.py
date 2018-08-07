@@ -12,13 +12,13 @@ def _str_decode(string_buf, str_len):
             print(f"Malformed bencode str: {str(str_len) + char}")
 
 def _int_decode(string_buf):
-    str_num = ""
+    num_digits = []
     char = string_buf.read(1)
     while char and char != 'e':
-        str_num += char
+        num_digits.append(char)
         char = string_buf.read(1)
     try:
-        num = int(str_num)
+        num = int(''.join(num_digits))
         return num
     except ValueError:
         print(f"Malformed bencode int: {str_num}")
