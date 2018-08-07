@@ -1,60 +1,97 @@
 import io
 
-def _str_decode(string_buf, str_len):
+############################
+# Encode to bencode format #
+############################
+
+def _str_encode(string):
+    str_len = len(string)
+    return f'{str_len}:{string}'
+
+def _int_encode(num):
+    return f'i{num}e'
+
+def _list_encode(std_list):
+    be_list = 'l' + ''.join([encode(item) for item in std_list]) + 'e'
+    return be_list
+
+def _dict_encode(std_dict):
+    be_dict = 'd' + ''.join([f'{encode(key)}{encode(std_dict[key])}' for key in std_dict])+ 'e'
+    return be_dict
+
+def encode(item):
+    if isinstance(item, int):
+        return _int_encode(item)
+    if isinstance(item, list):
+        return _list_encode(item)
+    if isinstance(item, dict):
+        return _dict_encode(item)
+    if isinstance(item, str):
+        return _str_encode(item)
+
+    return ValueError("Input invalid for bencoding")
+
+##########################################
+###### Decode from bencode format ########
+#                                        #
+### Support for file and string decoding #
+##########################################
+
+def _str_decode(fd, str_len):
     len_digits = [str(str_len)]
-    char = string_buf.read(1)
+    char = fd.read(1)
     while char != ':':
         len_digits.append(char)
-        char = string_buf.read(1)
+        char = fd.read(1)
     try:
         str_len = int(''.join(len_digits))
     except ValueError:
         print(f"Malformed bencode str: {''.join(len_digits)}")
-    return string_buf.read(str_len)
+    return fd.read(str_len)
 
-def _int_decode(string_buf):
+def _int_decode(fd):
     num_digits = []
-    char = string_buf.read(1)
+    char = fd.read(1)
     while char and char != 'e':
         num_digits.append(char)
-        char = string_buf.read(1)
+        char = fd.read(1)
     try:
         num = int(''.join(num_digits))
         return num
     except ValueError:
         print(f"Malformed bencode int: {str_num}")
 
-def _list_decode(string_buf):
+def _list_decode(fd):
     be_list = []
-    e = _decode(string_buf)
+    e = decode(fd)
     while e:
         be_list.append(e)
-        e = _decode(string_buf)
+        e = decode(fd)
     return be_list
 
-def _dict_decode(string_buf):
+def _dict_decode(fd):
     be_dict = {}
     key = ""
     value = ""
     while not key or not value:
         if key:
-            value = _decode(string_buf)
+            value = decode(fd)
             be_dict[key] = value
             key = ""
             value = ""
         else:
-            key = _decode(string_buf)
+            key = decode(fd)
             if not key:
                 return be_dict
 
-def _decode(string_buf):
-    char = string_buf.read(1)
+def decode(fd):
+    char = fd.read(1)
     if char == 'i':
-        return _int_decode(string_buf)
+        return _int_decode(fd)
     elif char == 'l':
-        return _list_decode(string_buf)
+        return _list_decode(fd)
     elif char == 'd':
-        return _dict_decode(string_buf)
+        return _dict_decode(fd)
     elif char == 'e':
         return ''
     elif char == '':
@@ -62,7 +99,7 @@ def _decode(string_buf):
     else:
         try:
             strlen = int(char)
-            return _str_decode(string_buf, strlen)
+            return _str_decode(fd, strlen)
         except ValueError:
             print(f"Malformed bencode input: {char}")
 
@@ -73,32 +110,5 @@ def filename_decode(filename):
 
 def string_decode(string):
     with io.StringIO(string) as s:
-        result = _decode(s)
+        result = decode(s)
     return result
-
-if __name__ == '__main__':
-    # Tests
-    decode_values = [
-        ('4:spam', 'spam'),
-        ('0:', ''),
-        ('i3e', 3),
-        ('i-3e', -3),
-        ('i0e', 0),
-        ('i-0e', 0), # Should Error
-        ('i03e', 3), # Should Error
-        ('l4:spam4:eggse', ["spam", "eggs"]),
-        ('le', []),
-        ('d3:cow3:moo4:spam4:eggse', {'cow': 'moo', 'spam': 'eggs'}),
-        ('d4:spaml1:a1:bee', {'spam': ['a', 'b']}),
-        ('de', {}),
-    ]
-
-    test_num = 1
-    for be_in, expected in decode_values:
-        print("TEST #%d" %test_num)
-        r = string_decode(be_in)
-        if r == expected:
-            print("PASSED")
-        else:
-            print(f"FAILED\n\tExpected: {expected}\n\tGot: {r}")
-        test_num += 1

@@ -7,3 +7,9 @@ if __name__ == '__main__':
     print(torrent['announce'])
     print(torrent.keys())
     print(torrent['info'].keys())
+
+    with open(filename, 'r', encoding='latin1') as fd:
+        torrent = be.decode(fd)
+    print(torrent['announce'])
+    print(torrent.keys())
+    print(torrent['info'].keys())
