@@ -24,33 +24,37 @@ def _int_decode(string_buf):
     except ValueError:
         print(f"Malformed bencode int: {str_num}")
 
-def _list_decode(string_buf, be_list):
+def _list_decode(string_buf):
+    be_list = []
     e = _decode(string_buf)
-    if e:
+    while e:
         be_list.append(e)
-        return _list_decode(string_buf, be_list)
-    else:
-        return be_list
+        e = _decode(string_buf)
+    return be_list
 
-def _dict_decode(string_buf, be_dict, key):
-    if key:
-        value = _decode(string_buf)
-        be_dict[key] = value
-        key = ""
-    else:
-        key = _decode(string_buf)
-        if not key:
-            return be_dict
-    return _dict_decode(string_buf, be_dict, key)
+def _dict_decode(string_buf):
+    be_dict = {}
+    key = ""
+    value = ""
+    while not key or not value:
+        if key:
+            value = _decode(string_buf)
+            be_dict[key] = value
+            key = ""
+            value = ""
+        else:
+            key = _decode(string_buf)
+            if not key:
+                return be_dict
 
 def _decode(string_buf):
     char = string_buf.read(1)
     if char == 'i':
         return _int_decode(string_buf)
     elif char == 'l':
-        return _list_decode(string_buf,[])
+        return _list_decode(string_buf)
     elif char == 'd':
-        return _dict_decode(string_buf,{},'')
+        return _dict_decode(string_buf)
     elif char == 'e':
         return ''
     elif char == '':
