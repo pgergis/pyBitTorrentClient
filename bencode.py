@@ -4,24 +4,24 @@ import io
 # Encode to bencode format #
 ############################
 
-def _byte_encode(string):
-    byte_len = len(string)
-    return b'%d:%b' %(byte_len, string)
-
 def _str_encode(string):
     str_len = len(string)
-    return f'{str_len}:{string}'
+    return b'%d:%b' %(str_len, string)
 
 def _int_encode(num):
-    return f'i{num}e'
+    return b'i%de' %(num)
 
 def _list_encode(std_list):
-    be_list = 'l' + ''.join([encode(item) for item in std_list]) + 'e'
+    be_list = b'l' + b''.join([encode(item) for item in std_list]) + b'e'
     return be_list
 
 def _dict_encode(std_dict):
-    be_dict = 'd' + ''.join([f'{encode(key)}{encode(std_dict[key])}' for key in std_dict]) + 'e'
-    return be_dict
+    byte_dict = b'd'
+    for key in std_dict:
+        byte_dict += encode(key)
+        byte_dict += encode(std_dict[key])
+    byte_dict += b'e'
+    return byte_dict
 
 def encode(item):
     if isinstance(item, int):
@@ -30,10 +30,10 @@ def encode(item):
         return _list_encode(item)
     if isinstance(item, dict):
         return _dict_encode(item)
-    if isinstance(item, str):
-        return _str_encode(item)
+    # if isinstance(item, str):
+    #     return _str_encode(item)
     if isinstance(item, bytes):
-        return _byte_encode(item)
+        return _str_encode(item)
 
     return ValueError(f"Input invalid for bencoding: {item}")
 
