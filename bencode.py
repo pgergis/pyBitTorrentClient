@@ -4,6 +4,10 @@ import io
 # Encode to bencode format #
 ############################
 
+def _byte_encode(string):
+    byte_len = len(string)
+    return b'%d:%b' %(byte_len, string)
+
 def _str_encode(string):
     str_len = len(string)
     return f'{str_len}:{string}'
@@ -16,7 +20,7 @@ def _list_encode(std_list):
     return be_list
 
 def _dict_encode(std_dict):
-    be_dict = 'd' + ''.join([f'{encode(key)}{encode(std_dict[key])}' for key in std_dict])+ 'e'
+    be_dict = 'd' + ''.join([f'{encode(key)}{encode(std_dict[key])}' for key in std_dict]) + 'e'
     return be_dict
 
 def encode(item):
@@ -28,8 +32,10 @@ def encode(item):
         return _dict_encode(item)
     if isinstance(item, str):
         return _str_encode(item)
+    if isinstance(item, bytes):
+        return _byte_encode(item)
 
-    return ValueError("Input invalid for bencoding")
+    return ValueError(f"Input invalid for bencoding: {item}")
 
 ##########################################
 ###### Decode from bencode format ########
@@ -40,8 +46,8 @@ def encode(item):
 def _str_decode(fd, str_len):
     len_digits = [str(str_len)]
     char = fd.read(1)
-    while char != ':':
-        len_digits.append(char)
+    while char and char != b':':
+        len_digits.append(char.decode())
         char = fd.read(1)
     try:
         str_len = int(''.join(len_digits))
@@ -52,21 +58,21 @@ def _str_decode(fd, str_len):
 def _int_decode(fd):
     num_digits = []
     char = fd.read(1)
-    while char and char != 'e':
+    while char and char != b'e':
         num_digits.append(char)
         char = fd.read(1)
     try:
-        num = int(''.join(num_digits))
+        num = int(b''.join(num_digits))
         return num
     except ValueError:
-        print(f"Malformed bencode int: {str_num}")
+        print(f"Malformed bencode int: {num_digits}")
 
 def _list_decode(fd):
     be_list = []
-    e = decode(fd)
-    while e:
-        be_list.append(e)
-        e = decode(fd)
+    element = decode(fd)
+    while element:
+        be_list.append(element)
+        element = decode(fd)
     return be_list
 
 def _dict_decode(fd):
@@ -86,29 +92,32 @@ def _dict_decode(fd):
 
 def decode(fd):
     char = fd.read(1)
-    if char == 'i':
+    if char == b'i':
         return _int_decode(fd)
-    elif char == 'l':
+    elif char == b'l':
         return _list_decode(fd)
-    elif char == 'd':
+    elif char == b'd':
         return _dict_decode(fd)
-    elif char == 'e':
-        return ''
-    elif char == '':
-        return ''
+    elif char == b'e' or char == b'':
+        return None
     else:
         try:
             strlen = int(char)
-            return _str_decode(fd, strlen)
+            return _str_decode(fd, strlen) #.decode()
         except ValueError:
-            print(f"Malformed bencode input: {char}")
+            print(f"Malformed bencode input at position {fd.tell()-1}: {char}")
 
 def filename_decode(filename):
-    with open(filename, 'r', encoding='latin1') as f:
-        s = f.read()
-    return string_decode(s)
+    with open(filename, 'rb') as f:
+        result = decode(f)
+    return result
 
 def string_decode(string):
-    with io.StringIO(string) as s:
+    if isinstance(string, str):
+        string = bytes(string, encoding='utf-8')
+    elif not isinstance(string, bytes):
+        raise ValueError('Invalid input: Use this to decode string or bytes')
+
+    with io.BytesIO(string) as s:
         result = decode(s)
     return result
