@@ -41,12 +41,19 @@ if __name__ == '__main__':
             print(f"FAILED\n\tExpected: {be_out}\n\tGot: {r}")
         test_num += 1
 
-    filename = 'ubuntu-18.04.1-desktop-amd64.iso.torrent'
+    filename = 'testfiles/ubuntu-18.04.1-desktop-amd64.iso.torrent'
     torrent = filename_decode(filename)
-    print(torrent['announce'])
+    # print(torrent)
+    print(torrent[b'announce'])
     print(torrent.keys())
-    print(torrent['info'].keys())
+    print(torrent[b'info'].keys())
 
-    with open(filename, 'r', encoding='latin1') as fd:
+    with open(filename, 'rb') as fd:
         torrent = decode(fd)
-    print(torrent['announce'] == string_decode(encode(torrent['announce'])))
+    print(torrent[b'announce'] == string_decode(encode(torrent[b'announce'])))
+
+    with open(filename, 'rb') as fd:
+        while 1:
+            pos = int(input())
+            print(f'file position: {fd.tell()}')
+            print(f'char after reading {pos}: {fd.read(pos)}')
