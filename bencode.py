@@ -16,11 +16,7 @@ def _list_encode(std_list):
     return be_list
 
 def _dict_encode(std_dict):
-    byte_dict = b'd'
-    for key in std_dict:
-        byte_dict += encode(key)
-        byte_dict += encode(std_dict[key])
-    byte_dict += b'e'
+    byte_dict = b'd' + b''.join([encode(key) + encode(std_dict[key]) for key in std_dict]) + b'e'
     return byte_dict
 
 def encode(item):
