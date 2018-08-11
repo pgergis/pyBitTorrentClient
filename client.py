@@ -1,9 +1,23 @@
 import bencode as be
 import hashlib
+import io
 import os
 import requests
 import sys
 import time
+
+def compact_peers_decode(peer_bytes):
+    peers = {}
+    with io.BytesIO(peer_bytes) as b:
+        peer = b.read(6)
+        while len(peer) == 6:
+            ip = int.from_bytes(peer[:4], 'big')
+            port = int.from_bytes(peer[4:6], 'big')
+            peers[ip] = port
+            peer = b.read(6)
+    if len(peer) != 0:
+        raise Exception(f'{len(peer)} residual peer bytes')
+    print(peers)
 
 def main():
 
@@ -51,7 +65,9 @@ def main():
     announce = torrent[b'announce'].decode()
     print(announce)
     response = requests.get(announce, params=request_params)
-    print(be.string_decode(response.content))
+    response = be.string_decode(response.content)
+    compact_peers_decode(response[b'peers'])
+
 
 if __name__ == '__main__':
     main()
