@@ -4,9 +4,9 @@ import io
 # Encode to bencode format #
 ############################
 
-def _str_encode(string):
-    str_len = len(string)
-    return b'%d:%b' %(str_len, string)
+def _str_encode(byte_string):
+    str_len = len(byte_string)
+    return b'%d:%b' %(str_len, byte_string)
 
 def _int_encode(num):
     return b'i%de' %(num)
@@ -108,7 +108,7 @@ def filename_decode(filename):
         result = decode(f)
     return result
 
-def string_decode(string):
+def raw_decode(string):
     if isinstance(string, str):
         string = bytes(string, encoding='utf-8')
     elif not isinstance(string, bytes):

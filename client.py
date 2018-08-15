@@ -6,11 +6,10 @@ import requests
 import sys
 import time
 
-## Unique machine ID: peer_id
-pid = os.getpid()
-curtime = time.time()
-peer_id = hashlib.sha1(bytes(str(int(curtime*pid)).encode())).digest()
-print(peer_id)
+## Unique machine ID: PEER_ID
+PID = os.getpid()
+CURTIME = time.time()
+PEER_ID = hashlib.sha1(bytes(str(int(CURTIME*PID)).encode())).digest()
 
 class Torrent(object):
     def __init__(self, filename):
@@ -41,32 +40,65 @@ def compact_peers_decode(peer_bytes):
 def send_tracker_request(torrent, ul_bytes, dl_bytes, event='', port=6885, compact=1, no_peer_id=''):
     request_params = {
         'info_hash': torrent.info_hash, # 20-byte SHA1 hash of torrent[info]
-        'peer_id': peer_id, # 20 byte SHA1 hash of machineID (timestamp+pid?)
+        'peer_id': PEER_ID, # 20 byte SHA1 hash of machineID (timestamp+pid?)
         'port': port, # 6881-6889 (usually); give up if can't establish port in range
         'uploaded': ul_bytes, # amount uploaded since start in base ten ASCII (total bytes)
         'downloaded': dl_bytes, # amount downloaded since start in base ten ASCII (total bytes)
         'left': torrent.total_bytes - dl_bytes, # amount left to download, base ten ASCII (total bytes remaining)
         'compact': 1, # 1 to accept: peers_list -> peers_string w/ 6 bytes per peer -- 4:host+2:port (network byte order)
-        'no_peer_id': '', # ignored w/ compact mode
+        'no_PEER_ID': '', # ignored w/ compact mode
         'event': event # must be 'started', 'stopped', 'completed', or ''
     }
 
     announce = torrent.torrent_hash[b'announce'].decode()
     response = requests.get(announce, params=request_params)
-    response = be.string_decode(response.content)
+    response = be.raw_decode(response.content)
     peers = compact_peers_decode(response[b'peers'])
+
     return peers
+
+def peer_handshake(peer, torrent):
+    # peer => tuple(host, port)
+    host, port = peer
+
+    pstr = b'BitTorrent protocol'
+    pstrlen = bytes([len(pstr)])
+    reserved = bytearray(8)
+
+    peer_handshake = pstrlen+pstr+reserved+torrent.info_hash+PEER_ID
+
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect((host, port))
+        s.sendall(peer_handshake)
+        response = s.recv(1024)
+    return response
+
+def valid_handshake(handshake_response, torrent):
+    return {
+        handshake_response
+        and torrent.info_hash in handshake_response
+    }
 
 def main():
 
-    filename = 'testfiles/archlinux-2018.08.01-x86_64.iso.torrent'
+    # filename = 'torrentfiles/archlinux-2018.08.01-x86_64.iso.torrent'
+    filename = 'torrentfiles/ubuntu-18.04.1-desktop-amd64.iso.torrent'
     torrent = Torrent(filename)
     event = 'started'
     uploaded_bytes = 0
     downloaded_bytes = 0
-    print(send_tracker_request(torrent, uploaded_bytes, downloaded_bytes, event))
-
-
+    peers = send_tracker_request(torrent, uploaded_bytes, downloaded_bytes, event)
+    confirmed_peers = []
+    for peer in peers:
+        p = (peer, peers[peer])
+        try:
+            handshake_response = peer_handshake(p, torrent)
+            if valid_handshake(handshake_response, torrent):
+                confirmed_peers.append(handshake_response)
+        except (ConnectionRefusedError, TimeoutError):
+            continue
+    print(f'peer responses: {confirmed_peers}')
 
 if __name__ == '__main__':
     main()
