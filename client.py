@@ -1,3 +1,4 @@
+import asyncio
 import bencode as be
 import hashlib
 import io
@@ -57,9 +58,11 @@ def send_tracker_request(torrent, ul_bytes, dl_bytes, event='', port=6885, compa
 
     return peers
 
-def peer_handshake(peer, torrent):
+async def peer_connection(peer, torrent, loop):
     # peer => tuple(host, port)
     host, port = peer
+    # host = '127.0.0.1'
+    # port = 8888
 
     pstr = b'BitTorrent protocol'
     pstrlen = bytes([len(pstr)])
@@ -67,18 +70,44 @@ def peer_handshake(peer, torrent):
 
     peer_handshake = pstrlen+pstr+reserved+torrent.info_hash+PEER_ID
 
-    import socket
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((host, port))
-        s.sendall(peer_handshake)
-        response = s.recv(1024)
+    print(f"waiting for connection with peer: {peer}")
+    reader, writer = await asyncio.open_connection(host, port, loop=loop)
+    print("connected")
+
+
+
+    writer.write(peer_handshake)
+    print(f"waiting for write with peer: {peer}")
+    await writer.drain()
+    print(f"waiting for response from peer: {peer}")
+    response = await reader.read(1024)
+    writer.close()
     return response
+
+    # import socket
+    # with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    #     s.connect((host, port))
+    #     s.sendall(peer_handshake)
+    #     response = s.recv(1024)
+    # return response
 
 def valid_handshake(handshake_response, torrent):
     return {
         handshake_response
         and torrent.info_hash in handshake_response
     }
+
+async def bt_client(peers, loop, torrent):
+    # for peer in peers:
+        # p = (peer, peers[peer])
+    # try:
+        responses = await asyncio.gather(*[peer_connection((peer, peers[peer]), torrent, loop) for peer in peers])
+        print(f'responses from peers: {responses}')
+        # handshake_response = await peer_connection(p, torrent, loop)
+        # if valid_handshake(handshake_response, torrent):
+        #     confirmed_peers.append(handshake_response)
+    # except (ConnectionRefusedError, TimeoutError):
+    #     continue
 
 def main():
 
@@ -90,14 +119,9 @@ def main():
     downloaded_bytes = 0
     peers = send_tracker_request(torrent, uploaded_bytes, downloaded_bytes, event)
     confirmed_peers = []
-    for peer in peers:
-        p = (peer, peers[peer])
-        try:
-            handshake_response = peer_handshake(p, torrent)
-            if valid_handshake(handshake_response, torrent):
-                confirmed_peers.append(handshake_response)
-        except (ConnectionRefusedError, TimeoutError):
-            continue
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(bt_client(peers, loop, torrent))
+    loop.close()
     print(f'peer responses: {confirmed_peers}')
 
 if __name__ == '__main__':
