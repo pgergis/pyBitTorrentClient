@@ -1,4 +1,5 @@
 import asyncio
+import argparse
 import bencode as be
 import hashlib
 import io
@@ -60,9 +61,11 @@ def send_tracker_request(torrent, ul_bytes, dl_bytes, event='', port=6885, compa
 
 async def peer_connection(peer, torrent, loop):
     # peer => tuple(host, port)
-    host, port = peer
-    # host = '127.0.0.1'
-    # port = 8888
+    if testing:
+        host = '127.0.0.1'
+        port = 8888
+    else:
+        host, port = peer
 
     pstr = b'BitTorrent protocol'
     pstrlen = bytes([len(pstr)])
@@ -74,13 +77,12 @@ async def peer_connection(peer, torrent, loop):
     reader, writer = await asyncio.open_connection(host, port, loop=loop)
     print("connected")
 
-
-
     writer.write(peer_handshake)
     print(f"waiting for write with peer: {peer}")
     await writer.drain()
     print(f"waiting for response from peer: {peer}")
     response = await reader.read(1024)
+    print(f"recieved response from peer: {peer}")
     writer.close()
     return response
 
@@ -110,9 +112,14 @@ async def bt_client(peers, loop, torrent):
     #     continue
 
 def main():
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('--torrent', help='path to the .torrent file', default='torrentfiles/archlinux-2018.08.01-x86_64.iso.torrent')
+    argparser.add_argument('--testing', action='store_true')
+    args = argparser.parse_args()
 
-    # filename = 'torrentfiles/archlinux-2018.08.01-x86_64.iso.torrent'
-    filename = 'torrentfiles/ubuntu-18.04.1-desktop-amd64.iso.torrent'
+    filename = args.torrent
+    global testing
+    testing = args.testing
     torrent = Torrent(filename)
     event = 'started'
     uploaded_bytes = 0
