@@ -4,24 +4,26 @@ import random
 class EchoServerClientProtocol(asyncio.Protocol):
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
-        task = asyncio.get_event_loop().create_task(self.go())
-        task.add_done_callback(self.handle_go_result)
         print('Connection from {}'.format(peername))
         self.transport = transport
 
     def data_received(self, data):
         self.data = data
-        message = data.decode()
-        print('Data received: {!r}'.format(message))
+        print('Data received: {!r}'.format(self.data))
+        task = asyncio.get_event_loop().create_task(self.go())
+        task.add_done_callback(self.handle_go_result)
 
+    async def go(self):
+        result = b'data reply'
+        if random.random() < 0.5:
+            print('Triggered random wait')
+            result = await asyncio.sleep(5, result = result)
+            print('Finished with random wait')
+        return result
 
-    @asyncio.coroutine
-    def go(self):
-        return(yield from asyncio.sleep(3, result = b'data reply'))
     def handle_go_result(self, task):
-        print('Send: {!r}'.format(message))
+        print('Send: {!r}'.format(self.data))
         self.transport.write(self.data)
-
         print('Close the client socket')
         self.transport.close()
 
