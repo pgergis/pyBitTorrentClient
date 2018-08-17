@@ -74,13 +74,12 @@ async def peer_connection(peer, torrent, loop):
     reader, writer = await asyncio.open_connection(host, port, loop=loop)
     print("connected")
 
-
-
     writer.write(peer_handshake)
     print(f"waiting for write with peer: {peer}")
     await writer.drain()
     print(f"waiting for response from peer: {peer}")
     response = await reader.read(1024)
+    print(f"recieved response from peer: {peer}")
     writer.close()
     return response
 
