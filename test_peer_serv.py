@@ -4,14 +4,14 @@ import random
 class EchoServerClientProtocol(asyncio.Protocol):
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
-        task = asyncio.get_event_loop().create_task(self.go())
-        task.add_done_callback(self.handle_go_result)
         print('Connection from {}'.format(peername))
         self.transport = transport
 
     def data_received(self, data):
         self.data = data
-        message = data.decode()
+        message = data
+        task = asyncio.get_event_loop().create_task(self.go())
+        task.add_done_callback(self.handle_go_result)
         print('Data received: {!r}'.format(message))
 
 
@@ -19,6 +19,7 @@ class EchoServerClientProtocol(asyncio.Protocol):
     def go(self):
         return(yield from asyncio.sleep(3, result = b'data reply'))
     def handle_go_result(self, task):
+        message = "you got it"
         print('Send: {!r}'.format(message))
         self.transport.write(self.data)
 

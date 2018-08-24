@@ -60,9 +60,9 @@ def send_tracker_request(torrent, ul_bytes, dl_bytes, event='', port=6885, compa
 
 async def peer_connection(peer, torrent, loop):
     # peer => tuple(host, port)
-    host, port = peer
-    # host = '127.0.0.1'
-    # port = 8888
+    # host, port = peer
+    host = '127.0.0.1'
+    port = 8888
 
     pstr = b'BitTorrent protocol'
     pstrlen = bytes([len(pstr)])
@@ -81,6 +81,7 @@ async def peer_connection(peer, torrent, loop):
     await writer.drain()
     print(f"waiting for response from peer: {peer}")
     response = await reader.read(1024)
+    print("finished reading")
     writer.close()
     return response
 
