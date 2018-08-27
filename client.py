@@ -5,6 +5,7 @@ import os
 import requests
 import sys
 import time
+import trio
 
 ## Unique machine ID: PEER_ID
 PID = os.getpid()
@@ -57,48 +58,54 @@ def send_tracker_request(torrent, ul_bytes, dl_bytes, event='', port=6885, compa
 
     return peers
 
-def peer_handshake(peer, torrent):
-    # peer => tuple(host, port)
-    host, port = peer
-
+async def peer_handshake(torrent_info, stream):
+    print("started handshake")
     pstr = b'BitTorrent protocol'
     pstrlen = bytes([len(pstr)])
     reserved = bytearray(8)
 
-    peer_handshake = pstrlen+pstr+reserved+torrent.info_hash+PEER_ID
+    peer_handshake = pstrlen+pstr+reserved+torrent_info+PEER_ID
 
-    import socket
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((host, port))
-        s.sendall(peer_handshake)
-        response = s.recv(1024)
+    await stream.send_all(peer_handshake)
+    response = await stream.receive_some(1024)
     return response
 
-def valid_handshake(handshake_response, torrent):
+def valid_handshake(handshake_response, torrent_info):
     return {
         handshake_response
-        and torrent.info_hash in handshake_response
+        and torrent_info in handshake_response
     }
+
+async def download_from_peer(peer, torrent):
+    # peer => tuple(host, port)
+    host, port = peer
+    print("connecting to peer: {}:{}".format(host, port))
+    try:
+        stream = await trio.open_tcp_stream(host, port)
+        async with stream:
+            handshake_response = await peer_handshake(torrent.info_hash, stream)
+            if valid_handshake(handshake_response, torrent.info_hash):
+                print("valid handshake from peer {}:{}".format(host,port))
+    except OSError:
+        print("failed to connect to peer: {}:{}".format(host, port))
+
+async def download(peers, torrent):
+    async with trio.open_nursery() as nursery:
+        for peer in peers:
+            p = (peer, peers[peer])
+            nursery.start_soon(download_from_peer, p, torrent)
+    print('finished downloading!')
 
 def main():
 
-    # filename = 'torrentfiles/archlinux-2018.08.01-x86_64.iso.torrent'
-    filename = 'torrentfiles/ubuntu-18.04.1-desktop-amd64.iso.torrent'
+    filename = 'torrentfiles/archlinux-2018.08.01-x86_64.iso.torrent'
+    # filename = 'torrentfiles/ubuntu-18.04.1-desktop-amd64.iso.torrent'
     torrent = Torrent(filename)
     event = 'started'
     uploaded_bytes = 0
     downloaded_bytes = 0
     peers = send_tracker_request(torrent, uploaded_bytes, downloaded_bytes, event)
-    confirmed_peers = []
-    for peer in peers:
-        p = (peer, peers[peer])
-        try:
-            handshake_response = peer_handshake(p, torrent)
-            if valid_handshake(handshake_response, torrent):
-                confirmed_peers.append(handshake_response)
-        except (ConnectionRefusedError, TimeoutError):
-            continue
-    print(f'peer responses: {confirmed_peers}')
+    trio.run(download, peers, torrent)
 
 if __name__ == '__main__':
     main()
