@@ -88,6 +88,7 @@ async def download_from_peer(peer, torrent):
         async with stream:
             handshake_response = await peer_handshake(torrent.info_hash, stream)
             if not valid_handshake(handshake_response, torrent.info_hash):
+                logging.warning("invalid handshake from peer {}:{}".format(host,port))
                 stream.aclose()
             else:
                 logging.info("valid handshake from peer {}:{}".format(host,port))
