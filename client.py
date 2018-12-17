@@ -1,11 +1,14 @@
 import bencode as be
 import hashlib
 import io
+import logging
 import os
 import requests
 import sys
 import time
 import trio
+
+logging.getLogger().setLevel(logging.INFO)
 
 ## Unique machine ID: PEER_ID
 PID = os.getpid()
@@ -59,7 +62,7 @@ def send_tracker_request(torrent, ul_bytes, dl_bytes, event='', port=6885, compa
     return peers
 
 async def peer_handshake(torrent_info, stream):
-    print("started handshake")
+    logging.info("started handshake")
     pstr = b'BitTorrent protocol'
     pstrlen = bytes([len(pstr)])
     reserved = bytearray(8)
@@ -79,27 +82,31 @@ def valid_handshake(handshake_response, torrent_info):
 async def download_from_peer(peer, torrent):
     # peer => tuple(host, port)
     host, port = peer
-    print("connecting to peer: {}:{}".format(host, port))
+    logging.info("connecting to peer: {}:{}".format(host, port))
     try:
         stream = await trio.open_tcp_stream(host, port)
         async with stream:
             handshake_response = await peer_handshake(torrent.info_hash, stream)
-            if valid_handshake(handshake_response, torrent.info_hash):
-                print("valid handshake from peer {}:{}".format(host,port))
+            if not valid_handshake(handshake_response, torrent.info_hash):
+                stream.aclose()
+            else:
+                logging.info("valid handshake from peer {}:{}".format(host,port))
+                stream.aclose()
+
     except OSError:
-        print("failed to connect to peer: {}:{}".format(host, port))
+        logging.error("failed to connect to peer: {}:{}".format(host, port))
 
 async def download(peers, torrent):
     async with trio.open_nursery() as nursery:
         for peer in peers:
             p = (peer, peers[peer])
             nursery.start_soon(download_from_peer, p, torrent)
-    print('finished downloading!')
+    logging.info('finished downloading!')
 
 def main():
 
-    filename = 'torrentfiles/archlinux-2018.08.01-x86_64.iso.torrent'
-    # filename = 'torrentfiles/ubuntu-18.04.1-desktop-amd64.iso.torrent'
+    # filename = 'torrentfiles/archlinux-2018.09.01-x86_64.iso.torrent'
+    filename = 'torrentfiles/ubuntu-18.04.1-desktop-amd64.iso.torrent'
     torrent = Torrent(filename)
     event = 'started'
     uploaded_bytes = 0
